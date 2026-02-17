@@ -95,7 +95,7 @@ If this plugin enhances your workflow, consider fueling my addiction:
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://ko-fi.com/kobuster)
 
-[![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](PayPal.me/Kobuster)
+[![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](https://PayPal.me/Kobuster)
 
 Contributions help motivate me to maintain and improve this plugin. Who am I kidding.
 
@@ -108,4 +108,5 @@ This plugin is in early stages and I am aware of a large number of bugs. Basic i
 ## 📝 Changelog
 
 See [RELEASES](https://github.com/kobuster/Obsidian-preview-modes/releases) for version history.
+
 
