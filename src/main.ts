@@ -28,6 +28,7 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 
+import { SidebarPreview } from "./sidebar";
 import { onLinkHover } from "./onLinkHover";
 import { PerWindowComponent, use } from "@ophidian/core";
 import { HoverEditorParent, HoverEditor, isHoverLeaf, setMouseCoords } from "./popover";
@@ -59,28 +60,31 @@ class Interactor extends PerWindowComponent {
     try {
       this.interact.removeDocument(this.win.document);
     } catch (e) {
-      // Sometimes, interact.removeDocument fails when the plugin unloads in 0.14.x:
-      // Don't let it stop the plugin from fully unloading
       console.error(e);
     }
   }
 }
 
 export default class HoverEditorPlugin extends Plugin {
-  private currentSidebarLeaf: WorkspaceLeaf | null = null;
+  sidebar!: SidebarPreview;
 
   use = use.plugin(this);
   interact = this.use(Interactor);
   settings!: HoverEditorSettings;
-
   settingsTab!: SettingTab;
+
   async onload() {
-    // Register sidebar hover view
+    // Initialize and register sidebar view type.
+    // register() must come before onLayoutReady so Obsidian can restore the
+    // leaf from workspace.json on startup.
+    this.sidebar = new SidebarPreview(this);
+    this.sidebar.register();
 
     this.registerActivePopoverHandler();
     this.registerFileRenameHandler();
     this.registerContextMenuHandler();
     this.registerCommands();
+
     this.patchUnresolvedGraphNodeHover();
     this.patchWorkspace();
     this.patchQuickSwitcher();
@@ -88,88 +92,21 @@ export default class HoverEditorPlugin extends Plugin {
     this.patchItemView();
     this.patchMarkdownPreviewRenderer();
     this.patchMarkdownPreviewView();
-    
+
     await this.loadSettings();
     this.registerSettingsTab();
 
     this.app.workspace.onLayoutReady(() => {
+      // Warm the sidebar leaf cache — if a leaf was restored from
+      // workspace.json (shell or markdown), claim it before first hover.
+      this.sidebar.warmCache();
       this.patchSlidingPanes();
       this.patchLinkHover();
       setTimeout(() => {
-        // workaround to ensure our plugin shows up properly within Style Settings
         this.app.workspace.trigger("css-change");
       }, 2000);
     });
-  
   }
-  // Add to main.ts plugin class
-
-  async openFileInSidebar(file: TFile, linkText: string, state?: EphemeralState): Promise<void> {
-    // Check if tracked leaf still exists
-    if (!this.currentSidebarLeaf || this.currentSidebarLeaf.disposed) {
-      // Get correct sidebar based on setting
-      const getLeaf = this.settings.sidebarPosition === "left" 
-        ? () => this.app.workspace.getLeftLeaf(false) ?? this.app.workspace.getLeftLeaf(true)
-        : () => this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getRightLeaf(true);
-      
-      this.currentSidebarLeaf = getLeaf();
-    }
-
-    const leaf = this.currentSidebarLeaf;
-
-    // Build state
-    const eState = this.buildEphemeralState(file, linkText, state);
-    const mode = this.getViewMode();
-
-    // Open file
-    await leaf.setViewState({
-      type: "markdown",
-      state: { file: file.path, mode },
-      active: true,
-    });
-
-    // Apply ephemeral state
-    setTimeout(() => {
-      if (leaf && !leaf.disposed) {
-        leaf.setEphemeralState(eState);
-      }
-    }, 50);
-
-    // Reveal sidebar if setting enabled
-    if (this.settings.sidebarAutoReveal) {
-      this.app.workspace.revealLeaf(leaf);
-    }
-
-    // Focus if setting enabled
-    if (this.settings.sidebarAutoFocus) {
-      this.app.workspace.setActiveLeaf(leaf, { focus: true });
-    }
-  }
-
-  // Helper methods (from old working code)
-  private buildEphemeralState(file: TFile, linktext: string, oldState?: EphemeralState): EphemeralState {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const subpath = linktext.includes("#") ? linktext.split("#")[1] : "";
-    const resolved = cache ? resolveSubpath(cache, subpath) : undefined;
-    const eState: EphemeralState = { subpath: subpath ? `#${subpath}` : undefined, ...oldState };
-
-    if (resolved) {
-      eState.line = resolved.start.line;
-      eState.startLoc = resolved.start;
-      eState.endLoc = resolved.end;
-    }
-    return eState;
-  }
-
-  private getViewMode(): string {
-    const defaultMode = this.settings.defaultMode;
-    if (defaultMode === "match") {
-      const activeView = this.app.workspace.getActiveViewOfType(ItemView);
-      return (activeView as any)?.getMode?.() ?? "preview";
-    }
-    return defaultMode;
-  }
-
 
   patchWorkspaceLeaf() {
     this.register(
@@ -188,8 +125,6 @@ export default class HoverEditorPlugin extends Plugin {
         setViewState(old: any) {
           return async function (this: any, viewState: ViewState, eState?: unknown) {
             const result = await old.call(this, viewState, eState);
-            // try and catch files that are opened from outside of the
-            // HoverEditor class so that we can update the popover title bar
             try {
               const he = HoverEditor.forLeaf(this);
               if (he) {
@@ -212,7 +147,6 @@ export default class HoverEditorPlugin extends Plugin {
           return function (this: any, state: any) {
             old.call(this, state);
             if (state.focus && this.view?.getViewType() === "empty") {
-              // Force empty (no-file) view to have focus so dialogs don't reset active pane
               this.view.contentEl.tabIndex = -1;
               this.view.contentEl.focus();
             }
@@ -224,7 +158,7 @@ export default class HoverEditorPlugin extends Plugin {
       around(WorkspaceItem.prototype, {
         getContainer(old: any) {
           return function (this: any) {
-            if (!old) return; // 0.14.x doesn't have this
+            if (!old) return;
             if (!this.parentSplit || this instanceof WorkspaceContainer) return old.call(this);
             return this.parentSplit.getContainer();
           };
@@ -241,9 +175,6 @@ export default class HoverEditorPlugin extends Plugin {
         return function () {
           const result = old.call(this);
           if (this.instructionsEl) {
-            // Obsidian 1.6 deletes existing instructions on setInstructions(),
-            // so patch the element to not empty(); setTimeout will remove the
-            // patch once the current event is over
             setTimeout(around(this.instructionsEl, {
               empty(next) {
                 return () => {};
@@ -275,7 +206,6 @@ export default class HoverEditorPlugin extends Plugin {
 
   patchItemView() {
     const plugin = this;
-    // Once 0.15.3+ is min. required Obsidian, this can be simplified to View + "onPaneMenu"
     const [cls, method] = View.prototype["onPaneMenu"] ? [View, "onPaneMenu"] : [ItemView, "onMoreOptionsMenu"];
     const uninstaller = around(cls.prototype, {
       [method](old: (menu: Menu, ...args: unknown[]) => void) {
@@ -322,7 +252,6 @@ export default class HoverEditorPlugin extends Plugin {
     });
     this.register(uninstaller);
 
-    // Restore pre-1.6 view header icons so you can drag hover editor leaves back to the workspace
     this.register(around(ItemView.prototype, {
       load(old) {
         return function(this: View) {
@@ -341,7 +270,6 @@ export default class HoverEditorPlugin extends Plugin {
   }
 
   patchMarkdownPreviewView() {
-    // Prevent erratic scrolling of preview views when workspace layout changes
     this.register(around(MarkdownPreviewView.prototype, {
       onResize(old) {
         return function onResize() {
@@ -353,34 +281,34 @@ export default class HoverEditorPlugin extends Plugin {
       }
     }))
   }
-    patchMarkdownPreviewRenderer() {
-      const plugin = this;
-      const uninstaller = around(MarkdownPreviewRenderer as MarkdownPreviewRendererStatic, {
-        registerDomEvents(old: Function) {
-          return function (
-            el: HTMLElement,
-            instance: { getFile?(): TFile; hoverParent?: HoverParent, info?: HoverParent & { getFile(): TFile} },
-            ...args: unknown[]
-          ) {
-            el?.on("mouseover", ".internal-embed.is-loaded", (event: MouseEvent, targetEl: HTMLElement) => {
-              // Only trigger hover if hoverEmbeds is NOT native
-              if (targetEl && plugin.settings.hoverEmbeds !== "native") {
-                app.workspace.trigger("hover-link", {
-                  event: event,
-                  source: targetEl.matchParent(".markdown-source-view") ? "editor" : "preview",
-                  hoverParent: instance.hoverParent ?? instance.info,
-                  targetEl: targetEl,
-                  linktext: targetEl.getAttribute("src"),
-                  sourcePath: (instance.info ?? instance).getFile?.()?.path || "",
-                });
-              }
-            });
-            return old.call(this, el, instance, ...args);
-          };
-        },
-      });
-      this.register(uninstaller);
-    }
+
+  patchMarkdownPreviewRenderer() {
+    const plugin = this;
+    const uninstaller = around(MarkdownPreviewRenderer as MarkdownPreviewRendererStatic, {
+      registerDomEvents(old: Function) {
+        return function (
+          el: HTMLElement,
+          instance: { getFile?(): TFile; hoverParent?: HoverParent, info?: HoverParent & { getFile(): TFile} },
+          ...args: unknown[]
+        ) {
+          el?.on("mouseover", ".internal-embed.is-loaded", (event: MouseEvent, targetEl: HTMLElement) => {
+            if (targetEl && plugin.settings.hoverEmbeds !== "native") {
+              app.workspace.trigger("hover-link", {
+                event: event,
+                source: targetEl.matchParent(".markdown-source-view") ? "editor" : "preview",
+                hoverParent: instance.hoverParent ?? instance.info,
+                targetEl: targetEl,
+                linktext: targetEl.getAttribute("src"),
+                sourcePath: (instance.info ?? instance).getFile?.()?.path || "",
+              });
+            }
+          });
+          return old.call(this, el, instance, ...args);
+        };
+      },
+    });
+    this.register(uninstaller);
+  }
 
   patchWorkspace() {
     let layoutChanging = false;
@@ -389,7 +317,6 @@ export default class HoverEditorPlugin extends Plugin {
         return async function (workspace: unknown) {
           layoutChanging = true;
           try {
-            // Don't consider hover popovers part of the workspace while it's changing
             await old.call(this, workspace);
           } finally {
             layoutChanging = false;
@@ -406,20 +333,16 @@ export default class HoverEditorPlugin extends Plugin {
       iterateLeaves(old) {
         type leafIterator = (item: WorkspaceLeaf) => boolean | void;
         return function (arg1, arg2) {
-          // Fast exit if desired leaf found
           if (old.call(this, arg1, arg2)) return true;
 
-          // Handle old/new API parameter swap
           let cb:     leafIterator  = (typeof arg1 === "function" ? arg1 : arg2) as leafIterator;
           let parent: WorkspaceItem = (typeof arg1 === "function" ? arg2 : arg1) as WorkspaceItem;
 
-          if (!parent) return false;  // <- during app startup, rootSplit can be null
-          if (layoutChanging) return false;  // Don't let HEs close during workspace change
+          if (!parent) return false;
+          if (layoutChanging) return false;
 
-          // 0.14.x doesn't have WorkspaceContainer; this can just be an instanceof check once 15.x is mandatory:
           if (parent === app.workspace.rootSplit || (WorkspaceContainer && parent instanceof WorkspaceContainer)) {
             for(const popover of HoverEditor.popoversForWindow((parent as WorkspaceContainer).win)) {
-              // Use old API here for compat w/0.14.x
               if (old.call(this, cb, popover.rootSplit)) return true;
             }
           }
@@ -432,8 +355,6 @@ export default class HoverEditorPlugin extends Plugin {
             const dropLoc: any = this.recursiveGetTarget(event, popover.rootSplit);
             if (dropLoc) {
               if (requireApiVersion && requireApiVersion("0.15.3")) {
-                // getDropLocation's return signature changed in 0.15.3
-                // it now only returns the target
                 return dropLoc;
               } else {
                 return { target: dropLoc, sidedock: false };
@@ -460,21 +381,18 @@ export default class HoverEditorPlugin extends Plugin {
       const uninstaller = around(SlidingPanesPlugin.prototype, {
         handleFileOpen(old: Function) {
           return function (...args: unknown[]) {
-            // sliding panes needs to ignore popover open events or else it freaks out
             if (isHoverLeaf(this.app.workspace.activeLeaf)) return;
             return old.call(this, ...args);
           };
         },
         handleLayoutChange(old: Function) {
           return function (...args: unknown[]) {
-            // sliding panes needs to ignore popovers or else it activates the wrong pane
             if (isHoverLeaf(this.app.workspace.activeLeaf)) return;
             return old.call(this, ...args);
           };
         },
         focusActiveLeaf(old: Function) {
           return function (...args: unknown[]) {
-            // sliding panes tries to add popovers to the root split if we don't exclude them
             if (isHoverLeaf(this.app.workspace.activeLeaf)) return;
             return old.call(this, ...args);
           };
@@ -485,94 +403,91 @@ export default class HoverEditorPlugin extends Plugin {
   }
 
   patchLinkHover() {
-  const plugin = this;
-  const pagePreviewPlugin = this.app.internalPlugins.plugins["page-preview"];
-  if (!pagePreviewPlugin.enabled) return;
-  
-  const uninstaller = around(pagePreviewPlugin.instance.constructor.prototype, {
-    onHoverLink(old: Function) {
-      return function (options: { event: MouseEvent }, ...args: unknown[]) {
-        if (options && isA(options.event, MouseEvent)) setMouseCoords(options.event);
-        return old.call(this, options, ...args);
-      };
-    },
-    onLinkHover(old: Function) {
-    return function (
-      parent: HoverEditorParent,
-      targetEl: HTMLElement,
-      linkText: string,
-      path: string,
-      state: EphemeralState,
-      ...args: unknown[]
-    ) {
-      // Determine link type and get corresponding mode
-      const { subpath } = parseLinktext(linkText);
-      let mode: "native" | "floating" | "sidebar";
+    const plugin = this;
+    const pagePreviewPlugin = this.app.internalPlugins.plugins["page-preview"];
+    if (!pagePreviewPlugin.enabled) return;
 
-      if (subpath && subpath[0] === "#") {
-        if (subpath.startsWith("#[^")) {
-          mode = plugin.settings.footnotes;
-        } else if (subpath.startsWith("#^")) {
-          mode = plugin.settings.blocks;
-        } else {
-          mode = plugin.settings.headings;
-        }
-      } else if (linkText.startsWith("!")) {
-        // Embed link (starts with !)
-        mode = plugin.settings.hoverEmbeds;
-      } else {
-        // Regular link (no subpath, no !)
-        mode = plugin.settings.regularLinks;
-      }
+    const uninstaller = around(pagePreviewPlugin.instance.constructor.prototype, {
+      onHoverLink(old: Function) {
+        return function (options: { event: MouseEvent }, ...args: unknown[]) {
+          if (options && isA(options.event, MouseEvent)) setMouseCoords(options.event);
+          return old.call(this, options, ...args);
+        };
+      },
+      onLinkHover(old: Function) {
+        return function (
+          parent: HoverEditorParent,
+          targetEl: HTMLElement,
+          linkText: string,
+          path: string,
+          state: EphemeralState,
+          ...args: unknown[]
+        ) {
+          // Determine mode based on link type
+          const { subpath } = parseLinktext(linkText);
+          let mode: "native" | "floating" | "sidebar";
 
-        // If native mode, use Obsidian's default behavior
-        if (mode === "native") {
-          return old.call(this, parent, targetEl, linkText, path, state, ...args);
-        }
-
-        // For floating or sidebar, apply trigger delay
-        const handleHover = () => {
-          const file = plugin.app.metadataCache.getFirstLinkpathDest(parseLinktext(linkText).path, path);
-          
-          if (!(file instanceof TFile)) {
-            // File doesn't exist - fall back to native
-            old.call(this, parent, targetEl, linkText, path, state, ...args);
-            return;
+          if (subpath && subpath[0] === "#") {
+            if (subpath.startsWith("#[^")) {
+              mode = plugin.settings.footnotes;
+            } else if (subpath.startsWith("#^")) {
+              mode = plugin.settings.blocks;
+            } else {
+              mode = plugin.settings.headings;
+            }
+          } else if (linkText.startsWith("!")) {
+            mode = plugin.settings.hoverEmbeds;
+          } else {
+            mode = plugin.settings.regularLinks;
           }
 
-          if (mode === "sidebar") {
-            // Open in sidebar
-            (async () => {
-              await plugin.openFileInSidebar(file, linkText, state);
-            })();
+          // Native: delegate entirely to Obsidian
+          if (mode === "native") {
+            return old.call(this, parent, targetEl, linkText, path, state, ...args);
+          }
+
+          const handleHover = () => {
+            // Check file exists first; fall back to native for unresolved links
+            const file = plugin.app.metadataCache.getFirstLinkpathDest(
+              parseLinktext(linkText).path,
+              path,
+            );
+
+            if (!(file instanceof TFile)) {
+              old.call(this, parent, targetEl, linkText, path, state, ...args);
+              return;
+            }
+
+            if (mode === "sidebar") {
+              // Delegate to the sidebar controller — fire-and-forget
+              plugin.sidebar.openLink(linkText, path, state);
+            } else {
+              // Floating hover editor
+              onLinkHover(plugin, parent, targetEl, linkText, path, state, ...args);
+            }
+          };
+
+          if (plugin.settings.triggerDelay > 0) {
+            setTimeout(handleHover, plugin.settings.triggerDelay);
           } else {
-            // Open floating hover editor
-            onLinkHover(plugin, parent, targetEl, linkText, path, state, ...args);
+            handleHover();
           }
         };
+      },
+    });
 
-        // Apply trigger delay
-        if (plugin.settings.triggerDelay > 0) {
-          setTimeout(handleHover, plugin.settings.triggerDelay);
-        } else {
-          handleHover();
-        }
-      };
-    },
-  });
-  
-  this.register(uninstaller);
+    this.register(uninstaller);
 
-  // Re-enable page preview to pick up patched methods
-  pagePreviewPlugin.disable();
-  pagePreviewPlugin.enable();
-
-  plugin.register(function () {
-    if (!pagePreviewPlugin.enabled) return;
+    // Re-enable page preview to pick up patched methods
     pagePreviewPlugin.disable();
     pagePreviewPlugin.enable();
-  });
-}
+
+    plugin.register(function () {
+      if (!pagePreviewPlugin.enabled) return;
+      pagePreviewPlugin.disable();
+      pagePreviewPlugin.enable();
+    });
+  }
 
   registerContextMenuHandler() {
     this.registerEvent(
@@ -651,8 +566,8 @@ export default class HoverEditorPlugin extends Plugin {
     const leaf = new (WorkspaceLeaf as new (app: App) => WorkspaceLeaf)(this.app);
     const view = this.app.internalPlugins.plugins.graph.views.localgraph(leaf);
     const GraphEngine = view.engine.constructor;
-    leaf.detach(); // close the view
-    view.renderer?.worker?.terminate(); // ensure the worker is terminated
+    leaf.detach();
+    view.renderer?.worker?.terminate();
     const uninstall = around(GraphEngine.prototype, {
       onNodeHover(old: Function) {
         return function (event: UIEvent, linkText: string, nodeType: string, ...items: unknown[]) {
@@ -686,8 +601,8 @@ export default class HoverEditorPlugin extends Plugin {
   }
 
   onunload(): void {
-    // Hide and clean up all active hover editor popovers
     HoverEditor.activePopovers().forEach(popover => popover.hide());
+    this.sidebar.unload();
   }
 
   async loadSettings() {
@@ -699,11 +614,54 @@ export default class HoverEditorPlugin extends Plugin {
   }
 
   registerCommands() {
+    // --- Sidebar commands --------------------------------------------------
+
+    this.addCommand({
+      id: "open-sidebar-preview",
+      name: "Open sidebar preview",
+      callback: async () => {
+        await this.sidebar.openShell();
+      },
+    });
+
+    this.addCommand({
+      id: "open-current-file-in-sidebar",
+      name: "Open current file in sidebar preview",
+      checkCallback: (checking: boolean) => {
+        const activeFile = this.app.workspace.activeEditor?.file ?? this.app.workspace.getActiveFile();
+        if (activeFile) {
+          if (!checking) this.sidebar.openFileDirectly(activeFile);
+          return true;
+        }
+        return false;
+      },
+    });
+
+    this.addCommand({
+      id: "open-link-in-sidebar",
+      name: "Open link under cursor in sidebar preview",
+      checkCallback: (checking: boolean) => {
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView) {
+          if (!checking) {
+            const token = activeView.editor.getClickableTokenAt(activeView.editor.getCursor());
+            if (token?.type === "internal-link") {
+              this.sidebar.openLink(token.text, activeView.file.path);
+            }
+          }
+          return true;
+        }
+        return false;
+      },
+    });
+
+    // --- Hover editor commands ---------------------------------------------
+
     this.addCommand({
       id: "bounce-popovers",
       name: "Toggle bouncing popovers",
       callback: () => {
-        this.activePopovers.forEach(popover => {
+        HoverEditor.activePopovers().forEach(popover => {
           popover.toggleBounce();
         });
       },
@@ -712,7 +670,6 @@ export default class HoverEditorPlugin extends Plugin {
       id: "open-new-popover",
       name: "Open new Hover Editor",
       callback: () => {
-        // Focus the leaf after it's shown
         const newLeaf = this.spawnPopover(undefined, () => this.app.workspace.setActiveLeaf(newLeaf, false, true));
       },
     });
@@ -820,12 +777,11 @@ export default class HoverEditorPlugin extends Plugin {
     if (!oldLeaf) return;
     oldLeaf.parentSplit.removeChild(oldLeaf);
     const {rootSplit} = this.app.workspace;
-    // Add to first pane/tab group
     this.app.workspace.iterateLeaves(rootSplit, leaf => {
       leaf.parentSplit.insertChild(-1, oldLeaf)
       return true
     })
-    this.app.workspace.activeLeaf = null;  // Force re-activation
+    this.app.workspace.activeLeaf = null;
     this.app.workspace.setActiveLeaf(oldLeaf, {focus: true});
     return oldLeaf;
   }
