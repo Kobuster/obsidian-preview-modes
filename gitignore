@@ -1,0 +1,24 @@
+# editors
+.vscode
+*.iml
+.idea
+
+# dependencies
+node_modules
+
+# lock files — keep pnpm-lock.yaml, ignore npm's
+package-lock.json
+
+# build output
+dist
+*.map
+
+# release staging
+release
+
+# obsidian plugin data
+data.json
+
+# misc
+yarn.lock
+yarn-error.log

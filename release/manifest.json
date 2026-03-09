@@ -1,0 +1,11 @@
+{
+  "id": "obsidian-preview-modes",
+  "name": "Preview Modes",
+  "version": "0.9.6",
+  "minAppVersion": "1.5.8",
+  "main": "main.js",
+  "description": "Choose native, Hover, or Sidebar previews based on link type.",
+  "author": "Kobuster",
+  "authorUrl": "https://github.com/Kobuster",
+  "isDesktopOnly": true
+}

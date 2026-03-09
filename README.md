@@ -1,8 +1,9 @@
 
 
-# Preview Modes – Obsidian Native, Hover Editor, Sidebar Leaf
+# Obsidian Preview Modes
 
-Preview links in the sidebar, the hover editor, or native preview based on their type. This is a fork of [Hover Editor](https://github.com/nothingislost/obsidian-hover-editor) designed for more efficient reference viewing and (as close as exists) inline editing of embeds.
+Preview links in the sidebar, hover editor, or native preview — configured per link type. This is a fork of [Hover Editor](https://github.com/nothingislost/obsidian-hover-editor) extended with a persistent sidebar preview and per-link-type routing.
+
 
 ## Features
 
@@ -14,80 +15,47 @@ Choose exactly how each link type is previewed:
 - **Block references** (`#^blockid`) - Jump to precise locations
 - **Embeds** (`![[note]]`, `![[image.png]]`) - Edit embedded content almost inline
 
-### NEW: Sidebar Mode
-Edit embedded notes and references **without leaving your current view** or pushing around popovers. The sidebar is now a secondary editing workspace - perfect for:
--  **Quick edits** while keeping your main note in focus
--  **Easier comparing of notes** side-by-side
-- **Preview history** Navigate between viewed previews like a regular note pane
-- (near) **seemless editing of embedded content**
 
-Previews are not persistent and quickly accessible or hideable in your left or right sidebar
+### Sidebar preview
 
+A persistent panel in your sidebar that updates as you hover links — without opening new panes or moving your focus. Drag it to either sidebar like any other panel.
 
-### Flexible Configuration
-- **Per-link-type modes** - Footnotes in sidebar, headings floating, blocks native
-- **Sidebar position** - Left or right, your choice
-- **Auto-focus control** - Reveal sidebar without stealing focus
-- **Trigger delay** - Fine-tune responsiveness
+- Stays open across sessions and plugin reloads
+- Full note view: view header, properties, backlinks, reading/editing mode
+- Same-note heading links scroll without reopening
+- Freely moveable between left and right sidebars
 
-### Floating Hover Editor (Original Features)
-All the power of Hover Editor remains:
-- Resizable, draggable preview windows
-- Pin multiple previews for reference
-- Full editing capabilities in hover views
+### Floating hover editor
+
+All original Hover Editor features intact:
+- Resizable, draggable floating windows
+- Pin multiple previews simultaneously
 - Snap to screen edges
-- Image zoom support
+- Image zoom on click-hold
+- Full editing in the popover
 
-HUGE THANKS TO **NothingisLost** for making Hover Editor!
-
-## Use Cases
-
-### Research & Writing
-Hover over citations while drafting → sidebar opens the source → edit notes inline → continue writing without context switching.
-
-### Knowledge Base Management
-Preview and edit linked notes instantly. Perfect for maintaining a web of interconnected ideas without losing your place.
-
-### Embedded Content Workflow
-Embed a note block → hover it → edit in sidebar → changes sync immediately. Near-inline editing with full editor features.
+---
 
 ## Installation
 
-### From Community Plugins (Pending Approval)
-1. Open Settings → Community Plugins
-2. Search "Sidebar Hover"
-3. Install and enable
-
+### Community plugins (pending approval)
+Settings → Community Plugins → search "Preview Modes"
 
 ### BRAT
+Add `Kobuster/obsidian-preview-modes` in BRAT settings.
 
-Install with BRAT should work soon. 
+### Manual
+1. Download `main.js` and `manifest.json` from the [latest release](https://github.com/Kobuster/obsidian-preview-modes/releases/latest)
+2. Create folder: `<vault>/.obsidian/plugins/obsidian-preview-modes/`
+3. Copy both files into that folder
+4. Reload Obsidian and enable the plugin under Settings → Community Plugins
 
+## Credits & License
 
-### Manual Installation
-1. Download `main.js`, `manifest.json`, `styles.css` from [latest release](https://github.com/kobuster/Obsidian-preview-modes/releases)
-2. Create folder `VaultFolder/.obsidian/plugins/dynamic-previews-native-hover-sidebar/`
-3. Copy files to folder
-4. Reload Obsidian
-5. Enable in Settings → Community Plugins
+Fork of [Hover Editor](https://github.com/nothingislost/obsidian-hover-editor) © nothingislost  
+Preview Modes additions © Kobuster  
+MIT License — see [LICENSE.md](LICENSE.md)
 
-## Configuration
-
-Open Settings → Sidebar Hover to configure:
-
-**Preview Modes** - Set behavior for each link type (native/floating/sidebar)
-**Sidebar Settings** - Position, auto-reveal, auto-focus
-**Trigger Delay** - Milliseconds before preview appears
-**View Mode** - Reading/editing/match current view
-
-## 🙏 Credits & License
-
-This plugin is a fork of [Hover Editor](https://github.com/nothingislost/obsidian-hover-editor) by [@nothingislost](https://github.com/nothingislost). The original Hover Editor pioneered floating preview windows in Obsidian - this fork adds sidebar mode and per-link-type configuration.
-
-Licensed under MIT License. - see [LICENSE](https://github.com/kobuster/obsidian-preview-modes/LICENSE.md) file.
-
-Original Hover Editor © nothingislost  
-Dynamic Preview Editors © Kobuster
 
 ## ☕ Support Development
 
@@ -99,14 +67,12 @@ If this plugin enhances your workflow, consider fueling my addiction:
 
 Contributions help motivate me to maintain and improve this plugin. Who am I kidding.
 
-## 🐛 Bug Reports & Feature Requests
+## Bug Reports & Feature Requests
 
-Found a bug or have an idea? [Open an issue](https://github.com/kobuster/Obsidian-preview-modes/issues)
+[Open an issue](https://github.com/kobuster/Obsidian-preview-modes/issues)
 
-This plugin is in early stages and I am aware of a large number of bugs. Basic implementation of the Sidebar works, but has some non-breaking issues that are easily fixed once I find the time. Hover editor works as normal. 
 
 ## 📝 Changelog
 
 See [RELEASES](https://github.com/kobuster/Obsidian-preview-modes/releases) for version history.
-
 
