@@ -4,6 +4,8 @@
 
 Preview links in the sidebar, hover editor, or native preview — configured per link type. This is a fork of [Hover Editor](https://github.com/nothingislost/obsidian-hover-editor) extended with a persistent sidebar preview and per-link-type routing.
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://ko-fi.com/kobuster) [![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](https://PayPal.me/Kobuster)
+
 
 ## Features
 
@@ -36,6 +38,28 @@ All original Hover Editor features intact:
 
 ---
 
+
+## ☕ Support Development
+
+If this plugin enhances your workflow, consider fueling my addiction:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://ko-fi.com/kobuster)
+
+[![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](https://PayPal.me/Kobuster)
+
+Contributions help motivate me to maintain and improve this plugin. Who am I kidding.
+
+## Bug Reports & Feature Requests
+
+[Open an issue](https://github.com/kobuster/Obsidian-preview-modes/issues)
+
+
+## 📝 Changelog
+
+See [RELEASES](https://github.com/kobuster/Obsidian-preview-modes/releases) for version history.
+
+---
+
 ## Installation
 
 ### Community plugins (pending approval)
@@ -57,22 +81,4 @@ Preview Modes additions © Kobuster
 MIT License — see [LICENSE.md](LICENSE.md)
 
 
-## ☕ Support Development
-
-If this plugin enhances your workflow, consider fueling my addiction:
-
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://ko-fi.com/kobuster)
-
-[![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](https://PayPal.me/Kobuster)
-
-Contributions help motivate me to maintain and improve this plugin. Who am I kidding.
-
-## Bug Reports & Feature Requests
-
-[Open an issue](https://github.com/kobuster/Obsidian-preview-modes/issues)
-
-
-## 📝 Changelog
-
-See [RELEASES](https://github.com/kobuster/Obsidian-preview-modes/releases) for version history.
 
